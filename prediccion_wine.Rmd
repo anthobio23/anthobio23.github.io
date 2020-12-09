@@ -1,0 +1,223 @@
+---
+title: "Predicción del tono del color del vino por medio de las [ácido málico] wine"
+author: "Anthony servitá"
+date: "1 de septiembre de 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+install.packages("caret")
+install.packages("lattice")
+install.packages("skimr")
+install.packages("tidyr")
+install.packages("caTools")
+install.packages("tidyverse")
+install.packages("knitr")
+
+library(caret)
+library(ggplot2)
+library(lattice)
+library(dplyr)
+library(skimr)
+library(tidyr)
+library(caTools)
+library(readr)
+library(rmarkdown)
+```
+
+Importación de datos: Datos aquí importados proviene del repositorio de UCI Machine learning. los datos hablan sobre 3 variedades de vinos, con sus concentraciones y características propias de la selección de cada vino. 
+
+```{r wine}
+download.file("https://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data", "wine.data")
+readLines("wine.data", n = 10)
+wine <- read.table("wine.data", sep = ",", header = FALSE)
+```
+
+Los datos contienen sus columnas previamente nombradas por el programa excel. 
+las mismas están basadas en el archivo descriptivo que viene adjunto al
+archivo de datos ('wine.names') subido por el investigador.
+
+Se realizara en primera instancia. un análisis de correlación para evaluar 
+que variables se encuentran relacionadas positivas o negativamente; con el
+fin de obtener un modelo de predicción a través de la regresión lineal. 
+
+En el articulo anterior, los datos tratados para la regresión lineal fueron 
+los de la variable Tono de color del vino y [ácido malico] para la cual se realizo
+un modelo predictivo por medio del paquete caret.
+
+En este caso, se evaluaran por medio de regresión por el método de gradiente descendente.
+
+2.- Entendimiento de los datos.
+
+```{r}
+df <- wine
+head(df)
+```
+con este vistazo, vemos nuevamente los valores de las primeras 6 filas de las 14 variables en estudio.
+
+como ya se había dicho, se realizara un estudio diferente.
+
+```{r}
+glimpse(df)
+```
+La declaración realizada, muestra que la variable Alcohol es de tipo de dbl (punto flotante), cuando en realidad es una variable de tipo entero. Esto puede ser corregido para evitar futuras confusiones en un gráfico donde se declare la separación de variables por variedad de alcohol.
+```{r}
+skim(df)
+```
+Como se puede observar, la variable Cenizas, TotalFenoles, Tono Contiene valores outliers.
+
+Para simplificar, usaremos variables que no contengan muchos valores alejados outliers.
+
+4.- EDA
+```{r}
+df %>%
+  select_if(is.double) %>%
+  gather() %>%
+  ggplot(aes(value)) +
+  geom_density() + 
+  facet_wrap(~key, scales = 'free') +
+  theme(axis.text = element_text(size = 6))
+```
+
+Vemos que existen variables bimodales, lo que por simplicidad descartaremos como variables tarjet en este estudio.
+lo siguiente es, realizar un test de normalidad, para ver si cumple con este criterio. 
+de esta manera, evaluaremos la necesidad  de utilizar la correlación de Pearson o de  Spearman.
+
+```{r}
+shapiro.test(df[,2])
+```
+Como puede observarse, el p-valor para la variable ácido málico se encuentra por debajo del valor de significancia alpha = 0.05,
+por lo que no se acepta la hipótesis nula con un 95% de confianza de que no existe una distribución para estos datos. Por consiguiente, 
+se acepta la hipótesis alternativa de normalidad de datos.
+```{r}
+shapiro.test(df[, 11])
+```
+Como puede observarse, el p-valor para la variable Tono se encuentra por debajo del valor de significáncia alpha = 0.05,
+por lo que no se acepta la hipotesis nula con un 95% de confianza de que no existe una distribucion para estos datos. Por consiguiente, 
+se acepta la hipotesis alternativa de normalidad de datos.
+
+Los resultados del test de shapiro Wilks indican que no existe una distribución normal con las dos variables. Por esta razón, debemos calcular 
+el análisis de correlación de Spearman.
+```{r}
+cor.test(df[, 2], df[, 11], method = "spearm")
+```
+Existe una correlación aceptable entre la variable Tono del vino y la [Malicacid]
+.
+
+iniciaremos el modelo de predicción de dos variabes.
+
+```{r}
+table(df$Alcohol)
+```
+Se encuentra balanceadas las clases con respecto a las variables de concentración. 
+
+5.- Modelo de regresión lineal con descenso de gradiente.
+```{r}
+#función de descenso de gradiente
+
+LinearRegressionGD <- function(lrate = .1, niter = 10000, x, y, theta) {
+  const <- lrate * (1 / length(x))
+  for (i in 1:niter) {
+    h <- x * theta[2] + theta[1]
+    theta[1] <- theta[1] - const * (sum(h - y))
+    theta[2] <- theta[2] - const * (sum(h - y) * x)
+  }
+  return(theta)
+}
+
+
+```
+
+```{r}
+##  sacamos las variables que serán usadas en el conjunto de entrenamiento y testing
+dataset <- df[, c(2, 11)]
+##  Selección del conjunto de entrenamiento y test
+split <- sample.split(dataset[, 1], SplitRatio = 0.75)
+training <- subset(dataset, split == TRUE)
+testing <- subset(dataset, split == FALSE)
+
+training <- data.frame(scale(training))
+testing <- data.frame(scale(testing))
+
+##   Modelado.
+linearRegression <- LinearRegressionGD(lrate = .1, niter = 20000,
+                                       x = as.numeric(training$Malicacid),
+                                       y = as.numeric(training$Tono),
+                                       c(0.1, 1.0))
+
+##  test de predicción con la variable Tono de color del vino
+ypred <- testing$Malicacid * linearRegression[2] + linearRegression[1]
+Regression <- lm(formula = Tono ~ Malicacid, data = training)
+```
+
+
+```{r pressure, echo=FALSE}
+ggplot() + geom_point(aes(x = testing$Malicacid,
+                          y = testing$Tono)) +
+  geom_line(aes(x = testing$Malicacid,
+                y = ypred, colour = "red"),
+            alpha = 1, size = .8) +
+  geom_line(aes(x = testing$Malicacid,
+                y = predict(Regression, newdata = testing), 
+                colour = "greed"),
+            alpha = 1, size = 0.8) +
+            scale_color_discrete(name = "modelo", labels = c("Regresion lineal (lm)",
+                                                             "Descenso por gradiente")) +
+              ggtitle("scatterplot de regresión del Tono de color del vino con respecto a [ácido málico]") +
+              xlab("[ácido málico] (g/mL)") +
+              ylab("Tono de color del vino")
+  
+```
+las ecuaciones de la recta a estos modelos son:
+
+```{r}
+# con el algoritmo de lm, tenemos:
+
+#intercept de lm
+Regression$coefficients[1]
+
+#pendiente de lm
+Regression$coefficients[2]
+
+# con el algoritmo de descenso por gradiente
+# INtercepto en GD
+linearRegression[1]
+
+#pendiente en GD
+linearRegression[2]
+
+# resumen de la regresion lineal 
+summary(Regression)
+```
+Estos resultado muestran, un valor p menor al nivel de sígnificancia alpha. Por lo tanto, tenemos un 95% de confianza de
+no aceptar la hipótesis nula del valor beta de regresión. Así mismo, el valor de bondad de ajuste, presenta un 26% lo que 
+sugiere que la dispersión de los datos puede describirse mediante la regresión.
+
+FINAL   cálculo de las métricas de evaluación de la regresión de gradiente descendiente
+```{r}
+# coeficiente de determinación
+SSR <- sum(c(ypred - mean(ypred)) ** 2)
+SST <- sum(c(testing$Tono - mean(testing$Tono)) ** 2)
+R_squart <- SSR/SST
+R_squart
+
+# MSE y RMSE
+MSE_GD <- mean((testing$Tono -  ypred) ** 2)
+MSE_GD
+
+sqrt(MSE_GD)
+
+```
+
+Conclusiones: 
+  Los resultados del R ajustado o de bondad de ajuste para la regresión lineal realizado por medio del gradiente 
+descendiente, revela que optimiza una mejor recta ajustada a los datos. esto demuestra que el 72% de la dispersión de los datos
+está representada por la regresión lineal; mas exactamente, por la regresión mediado por el descenso del gradiente.
+  

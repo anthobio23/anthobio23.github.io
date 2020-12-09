@@ -1,0 +1,82 @@
+---
+title: 'Tecnica de Prediccion - Modelo de regresion simple'
+author: "Anthony Servitá"
+date: "5/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+5.    Modelados de regresión en la variables cuantitativas:
+  1.    Creando la data particionada con createdatapartition()
+```{r wine}
+# Observamos el desbalanceo de datos sobre la variable Alcohol
+attach(df)
+table(Alcohol)
+
+##  Eliminamos la variables cuyo origen es desconocido
+df$none <- NULL
+#revisión rapida
+glimpse(df)
+```
+creación de la data partition, para prueba de validación cruzada.
+
+```{r}
+# modelo 1: prueba con el paquete caret
+indexTraining = createDataPartition(Tono,
+                                    p = .80,
+                                    list = FALSE, 
+                                    times = 1)
+# Datos de entrenamiento y de prueba
+datatraining = df[indexTraining, ]
+datatest = df[-indexTraining, ]
+length(datatraining[,11])
+length(datatest[,11])
+fitcontrol = trainControl(method = "CV", 
+                          number = 2)
+# El modelo 1, method = lm
+DTfit <- train(Tono ~ Malicacid, 
+               data = datatraining, 
+               method = "lm",
+               trControl = fitcontrol)
+DTfit
+
+
+summary(DTfit)
+
+# Extracción de la ecuación de la recta
+DTfit$finalModel$coefficients
+intercept <- DTfit$finalModel$coefficients[1]
+pendiente <- DTfit$finalModel$coefficient[2]
+```
+conclusiones de H0: dado que el P-valor para la variable Tono es menor al alpha usual .05 hay evidencia con un 95% de confianza
+para rechazar la H0 nula, y por lo tanto se concluye que la variable ácido málico aporta información para predecir el tono de color del vino.
+
+También se observa, un valor de r-ajustado del 29% lo que indica que el 29% de la dispersión de los datos, se encuentra representada
+por la regresión calculada con un error residual del 1.9%. ~ 2%
+
+6. Evaluación del modelo
+```{r}
+pred <- (datatest$Tono * pendiente) + intercept
+pred
+# comparamos el MSE del DTfit y de pred
+MSE <- mean((datatest$Tono -  pred) ** 2)
+MSE
+
+# RMSE
+sqrt(MSE)
+```
+
+7. Visualización de resultados.
+```{r wine, echo=FALSE}
+datatraining %>% 
+  ggplot(aes(y = Tono, x = Malicacid, color = Alcohol)) + 
+  geom_point() +
+  geom_abline(lty = 2, intercept = intercept, 
+              slope = pendiente, color = "red") +
+  theme_ipsum() +
+  labs(title = "Modelo de regresion lineal simple", 
+       subtitle = "Tecnica de prediccion del tono del color del vino según la [ácido málico] en el vino")
+```
