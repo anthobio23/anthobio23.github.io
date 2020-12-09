@@ -1,0 +1,284 @@
+---
+title: 'Tecnica descriptiva y inferencial - Modelo de regresion simple'
+author: "Anthony Servitá"
+date: "5/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+install.packages("skimr")
+install.packages("tidyr")
+install.packages("lubridate")
+install.packages("ggplot2")
+install.packages("tidyverse")
+
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(lubridate)
+library(ggplot2)
+library(tidyr)
+
+```
+
+1. importación de los datos. 
+  la data es recolectada desde el repositorio UCI Machine Learning https://archive.ics.uci.edu/ml/datasets/wine , 
+  la misma recolecta información de los componente que constituyen el 3 tipos de vinos. 
+```{r wine}
+download.file("https://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data", "wine.data")
+readLines("wine.data", n = 10)
+wine <- read.table("wine.data", sep = ",", header = FALSE)
+head(wine)
+```
+Las observaciones al dataset , indican que la variable 1 es que que posee la variable dependiente "tipo de vino".
+```{r}
+# resumen de los datos.
+summary(wine)
+```
+
+El resto de la columnas son las composiciones químicas de estos 3 tipos de vino. Se habla de 3 tipos de vino,
+pues la tabla indica que la comparación del valor mínimo, máximo y la mediana coinciden en valores  1, 2, 3; y debido
+a que es una variable del tipo entero no puede contener valores del tipo double "coma flotante". mas a delante, en 
+la visualización nos aseguramos de esto.
+
+El archivo "wine.names", contiene la metadata de los datos, estos mismo contiene la información especifica de 13 
+variables. Ahora bien, en nuestro dataset tenemos 14 variables. la cual, desconocemos su procedencia y su nombre;
+esto llevara a la eliminación de la misma, ya que por los momentos su información es irrelevante para el análisis.
+
+el resto de la variables si corresponden con los metadatos. 
+
+Nombraremos las variables.
+
+```{r}
+varnames <- c("Alcohol", "Malicacid", "Cenizas", "AlcalinidadCenizas",
+              "Magnesio", "TotalFenoles", "Flavonoides", "FenolesNoFlavonoides",
+              "Proantocianinas", "IntensidadColor", "Tono", "OD280/OD315ofVinosDiluidos",
+              "Prolina", "none")
+colnames(wine) <- varnames
+df <- wine
+
+glimpse(df)
+```
+visualizamos que los tipos de variables corresponden a los tipos de datos en el dataset df.
+
+1. Compresión de los datos.
+  en este apartado se expondrán a conocer con exactitud los datos.
+```{r}
+skim(df)
+```
+Como se puede observar en la tabla descriptiva, los datos que quizas posean una distribución normal, pertenecen a la variable
+Malicacid, AlcalinidadCenizas, Magnesio, Proantocianinas, Intensidad de color.
+
+1.2.    Comprensión la primera variable: "Malicacid" 
+  La cual mide la concentración de ácido málico que contienen los tres tipo de vino.
+  El ácido málico comúnmente esta en la pulpa de la uva, y pasa a fermentación en el vino transformándose en ácido láctico. 
+  Este producto es el determinante de la acidez del vino. 
+```{r}
+df %>%
+  arrange(Malicacid) %>%
+  filter(Alcohol == 2)
+
+df %>% 
+  select(Malicacid) %>%
+  filter(Alcohol == 2) %>%
+  summarize(mean(Malicacid), mfv(Malicacid), median(Malicacid))
+  
+  
+df %>%
+  select(Malicacid) %>%
+  filter(Alcohol == 2) %>%
+  gather() %>%
+  ggplot(aes(value)) + 
+  geom_density()
+
+shapiro.test(df[Alcohol == 2,2][])
+
+		
+# mean = 12.27873	moda = 12.37	median = 12.29	
+```
+Como se observa, las concentraciones de "ácido málico" van cercanos a 11.00 hasta 14, estas concentraciones son distinguibles para el tipo de vino 2.
+
+```{r}
+df %>%
+  arrange(Malicacid) %>%
+  filter(Alcohol == 3)
+
+df %>%
+  select(Malicacid) %>%
+  filter(Alcohol == 3) %>%
+  summarize(mean(Malicacid), mfv(Malicacid), median(Malicacid))
+
+df %>%
+  select(Malicacid) %>%
+  filter(Alcohol == 3) %>%
+  gather() %>%
+  ggplot(aes(value)) + 
+  geom_density()
+
+shapiro.test(df[Alcohol == 2,2][])
+
+# mean = 13.15, moda = 12.25; 13.17; 13.40, median = 13.165
+```
+Con respecto al tipo de vino 3, las concentraciones de 'ácido málico' osilan entre 12 y 14.5.
+
+```{r}
+df %>%
+  arrange(Malicacid) %>%
+  filter(Alcohol == 1)
+
+df %>%
+  select(Malicacid) %>%
+  filter(Alcohol == 1) %>%
+  summarize(mean(Malicacid), mfv(Malicacid), median(Malicacid))
+
+df %>%
+  select(Malicacid) %>%
+  filter(Alcohol == 1) %>%
+  gather() %>%
+  ggplot(aes(value)) + 
+  geom_density()
+
+shapiro.test(df[Alcohol == 1,2][])
+
+# mean = 13.74, moda = 13.05, median = 13.75
+```
+El vino de tipo 1 contiene concentraciones de ácido málico que oscilan entre los 12.80 y 14.85..
+ 
+Conclusiones: A pesar de que el ácido málico es característico de cada tipo de vino , 
+pues sus variaciones en las concentraciones determinan (entre otras cosas)
+el grado de acidez que contenga el vino. Debido a esto podemos decir, que los distintos tipos de vinos 
+1, 2, 3 no son muy diferentes con respecto a su grado de acidez, lo que nos lleva a pensar que esta variable,
+no podría ser un buen clasificador de la variable dependiente.
+
+Observamos como se distribuye la variable 'Macil Acido' en los datos completos
+```{r}
+df %>%
+  select(Malicacid) %>%
+  gather() %>%
+  ggplot() + geom_density(aes(value)) +
+  facet_wrap(~key, scales = 'free') +
+  theme_modern_rc()
+
+df %>%
+  select(Malicacid) %>%
+  summarize(mean(Malicacid), mfv(Malicacid), median(Malicacid))
+
+shapiro.test(df$Malicacid)
+
+# mean = 13.00 moda = 12.37, 13.05 median = 13.05
+```
+Por lo tanto, no se acepta la hipotesis nula (H0) de normalidad de datos. es bimodal, y tiene una tendencia asimetrica hacia la izquierda.
+
+Otra variable que muestra mucho interes, es la cenizas el cual es el resultado final de la evaporacion porvocado por la incineracion del vino.
+
+```{r}
+df %>%
+  select(Cenizas) %>%
+  gather() %>%
+  ggplot() + geom_density(aes(value)) +
+  facet_wrap(~key, scales = 'free') +
+  theme_modern_rc()
+  
+df %>% 
+  select(Alcohol, Cenizas) %>%
+  filter(Alcohol == 1) %>%
+  summarise(range(Cenizas), length(Cenizas), mean(Cenizas), median(Cenizas), mfv(Cenizas))
+  
+
+# El rango de valores de la variable Cenizas con respecto al tipo de alcohol 2 va desde, 1.35 y 4.04.
+# Con una media = 2.01 una media = 1.77 y una moda = 1.73
+```
+
+```{r}
+df %>%
+  select(Alcohol, Cenizas) %>%
+  filter(Alcohol == 2) %>%
+  summarise(range(Cenizas), length(Cenizas), mean(Cenizas), median(Cenizas), mfv(Cenizas))
+
+# El rango de valores de la variable Cenizas con respecto al tipo de alcohol 2 va desde, 0.74 asta 5.80
+# con una media = 1.93 una mediana = 1.61 y moda == bimodal = 1.51, 1.61
+```
+```{r}
+df %>%
+  select(Alcohol, Cenizas) %>%
+  filter(Alcohol == 3) %>%
+  summarise(range(Cenizas), length(Cenizas), mean(Cenizas), median(Cenizas), mfv(Cenizas))
+# el rango de valores de la variable Cenizas va desde 1.24 hasta 5.65.
+# Con media = 3.375 media = 3.265 y moda = 0.03
+
+
+```
+Conclusiones: Como puede observarse, cada tipo de alcohol posee valores similares de cenizas durante la evaporación obtenida por la incineración del vino.
+el tipo de alcohol 2 es el único que posee valores un poco menores a los que se encuentran en los otros dos tipos de vino. Los valores de los otros dos tipos 
+de vino no bajan del 1.24 para el de tipo 3 y de 1.35 para el de tipo 1, probablemente por la diferencia de datos que existen entre ellos, tomando en cuenta 
+que no son valores muy alejado. aun así, no existe evidencia hasta ahora que que haya un desbalanceo 'pronunciado' entre los datos colectados para los 3 tipos de vino.
+
+Análisis de correlación de variables
+
+```{r}
+df %>%
+  cor() %>%
+  round(digits = 2)
+
+#graficamos estas correlaciones
+ggcorr(df, method = c("everything", "pearson"))
+```
+Conclusiones: la correlaciones mayormente pronunciadas se encuentran entre las variables: 
+  1.- [acido malico] con respecto al tono (R²(+)).
+  2.- Cenizas con respecto al [Flavonoides] (R²(-)), [Fenoles no flavonoides] (R²(-)) y OD280.OD315 de vino diluidos (R²(-))
+  3.- Alcalindad de cenizas con respecto al Magnesio (R²(+)).
+  4.- El [Magnesio] con respecto a los [Flavonoides] (R²(-)), [fenoles no flavonoides] (R²(-)).
+  5.- [Flavonoides] con respecto a los [fenoles no flavonoides] (R²(+)), [Proantocianinas] (R²(-)), intensidad de color (R²(+)),
+      [Prolina] (R²(+)).
+  6.- [FenolesNoFlavonoides] con respecto a las [Proantocianinas] (R²(-)), intensidad de color (R²(+)), OD280.OD314 de vinos diluidos (R²(+)), 
+      [Prolina] (R²(+)).
+  7.- [Proantocianinas] con respecto a la intensidad de color (R²(-)) y [Prolina] (R²(-)).
+  8.- INtensidad de color con respecto a la [Prolina] (R²(+)).
+  9.- Tono con respecto al OD280.OD315 de vinos diluidos (R²(-)), [Prolína] (R²(-)).
+  10.- OD280.OD315 de vinos diluidos con respectos a las concentraciones de [Prolína] (R²(+)).
+  
+  # el símbolo [] representa "concentración" en términos químicos. por ejemplo: [ácido málico] significa: concentración de ácido málico.
+
+# grafico de dispersion de las variables Tono y acido malico  
+```{r}
+df %>% 
+  ggplot() + 
+  geom_point(aes(x = Malicacid, y = Tono)) +
+  theme_gray()
+```
+Evaluación de la correlación para la variable tarjet.
+```{r}
+shapiro.test(df$Tono)
+```
+Como puede observarse, no existe una distribución normal de la variable Tono (tarjet). 
+  como anteriormente ya habíamos calculado el test de normalidad para la variable ácido malíco, 
+  vimos que tampoco se distribuye normal. 
+
+evaluaremos la correlación por el método de Spearman debido a que no cumple los criterios necesario para ser evaluados
+por la de Pearson.
+
+la decisión se correlación significante se tomara a partir de la siguiente  prueba de hipótesis.
+
+H0: rho = 0
+h1: rho != 0 
+
+tomando como valor de alpha de significancia, .05 para la prueba de hipótesis. Si se acepta la hipótesis nula; entonces, el valor de correlación
+entre ambas variables, no es significativo.
+
+```{r}
+cor.test(df$Malicacid, df$Tono, method = "spearman")
+```
+Decisión: 
+  Debido, a que el valor rho, es distinto positivamente de 0, y el valor p es mucho menor al valor alpha de significancia, entonces:
+  tenemos un 95% de confianza de que la relación entre la variable Tono y la variable ácido málico, se corresponden mutuamente para
+  este conjunto de datos, por lo que no se acepta la hipotesis nula de variables no relación.
+  
+
+
+
+  
+
